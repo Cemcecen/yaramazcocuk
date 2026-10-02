@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>YaramazÇocuk Kontrol</title>
+
+<style>
+body {
+    margin: 0;
+    padding: 20px;
+    font-family: Arial, sans-serif;
+    background: #eeeeee;
+    text-align: center;
+}
+
+h1 {
+    font-size: 26px;
+    margin-bottom: 15px;
+}
+
+#connect {
+    width: 100%;
+    padding: 18px;
+    font-size: 22px;
+    font-weight: bold;
+    border: none;
+    border-radius: 15px;
+    background: #198754;
+    color: white;
+}
+
+#status {
+    margin: 15px 0;
+    font-size: 18px;
+    font-weight: bold;
+}
+
+#total {
+    background: white;
+    border-radius: 15px;
+    padding: 18px;
+    margin-bottom: 18px;
+    font-size: 25px;
+    font-weight: bold;
+}
+
+.buttons {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+.step {
+    min-height: 90px;
+    border: none;
+    border-radius: 15px;
+    background: white;
+    font-size: 25px;
+    font-weight: bold;
+    box-shadow: 0 3px 7px #999;
+}
+
+#reset {
+    width: 100%;
+    min-height: 85px;
+    margin-top: 15px;
+    border: none;
+    border-radius: 15px;
+    background: #dc3545;
+    color: white;
+    font-size: 22px;
+    font-weight: bold;
+}
+
+button:active {
+    transform: scale(0.97);
+}
+</style>
+</head>
+
+<body>
+
+<h1>YARAMAZÇOCUK</h1>
+
+<button id="connect">🔵 BAĞLAN</button>
+
+<div id="status">
+    🔴 Bağlı değil
+</div>
+
+<div id="total">
+    TOPLAM: 0.0 mV
+</div>
+
+<div class="buttons">
+
+<button class="step" data-cmd="1">
+    +1.0 mV
+</button>
+
+<button class="step" data-cmd="2">
+    +1.5 mV
+</button>
+
+<button class="step" data-cmd="3">
+    +2.0 mV
+</button>
+
+<button class="step" data-cmd="4">
+    +2.5 mV
+</button>
+
+<button class="step" data-cmd="5">
+    +3.0 mV
+</button>
+
+<button class="step" data-cmd="6">
+    +3.5 mV
+</button>
+
+<button class="step" data-cmd="7">
+    +4.0 mV
+</button>
+
+<button class="step" data-cmd="8">
+    +5.0 mV
+</button>
+
+</div>
+
+<button id="reset">
+    🔴 RESET<br>
+    HI-Z / BOŞ KABLO
+</button>
+
+
+<script>
+
+const SERVICE_UUID =
+"7A1B0001-5A2E-4D7C-9F11-123456789001";
+
+const CHARACTERISTIC_UUID =
+"7A1B0002-5A2E-4D7C-9F11-123456789001";
+
+let characteristic = null;
+let total = 0;
+
+
+// =====================================================
+// BAĞLAN
+// =====================================================
+
+document.getElementById("connect").onclick =
+async function() {
+
+    try {
+
+        document.getElementById("status").innerHTML =
+        "🟡 Cihaz aranıyor...";
+
+        const device =
+        await navigator.bluetooth.requestDevice({
+
+            filters: [
+                {
+                    name: "yaramazcocuk"
+                }
+            ],
+
+            optionalServices: [
+                SERVICE_UUID
+            ]
+
+        });
+
+
+        device.addEventListener(
+            "gattserverdisconnected",
+            function() {
+
+                characteristic = null;
+
+                document.getElementById("status").innerHTML =
+                "🔴 Bağlantı kesildi";
+
+            }
+        );
+
+
+        const server =
+        await device.gatt.connect();
+
+
+        const service =
+        await server.getPrimaryService(
+            SERVICE_UUID
+        );
+
+
+        characteristic =
+        await service.getCharacteristic(
+            CHARACTERISTIC_UUID
+        );
+
+
+        document.getElementById("status").innerHTML =
+        "🟢 BAĞLANDI: " + device.name;
+
+
+        document.getElementById("connect").innerHTML =
+        "🟢 BAĞLANDI";
+
+
+    }
+
+    catch(error) {
+
+        document.getElementById("status").innerHTML =
+        "❌ Bağlantı başarısız";
+
+        console.log(error);
+
+    }
+
+};
+
+
+// =====================================================
+// KOMUT GÖNDER
+// =====================================================
+
+async function sendCommand(command) {
+
+    if (!characteristic) {
+
+        document.getElementById("status").innerHTML =
+        "⚠️ Önce BAĞLAN'a bas";
+
+        return;
+    }
+
+
+    try {
+
+        const data =
+        new TextEncoder().encode(command);
+
+
+        await characteristic.writeValue(data);
+
+
+        // RESET
+        if (command === "R") {
+
+            total = 0;
+
+            document.getElementById("total").innerHTML =
+            "TOPLAM: 0.0 mV — HI-Z";
+
+            return;
+        }
+
+
+        // Tetik değerleri
+
+        const values = {
+
+            "1": 1.0,
+            "2": 1.5,
+            "3": 2.0,
+            "4": 2.5,
+            "5": 3.0,
+            "6": 3.5,
+            "7": 4.0,
+            "8": 5.0
+
+        };
+
+
+        total += values[command];
+
+
+        // Maksimum +20 mV
+
+        if (total > 20)
+            total = 20;
+
+
+        document.getElementById("total").innerHTML =
+        "TOPLAM: " + total.toFixed(1) + " mV";
+
+    }
+
+    catch(error) {
+
+        document.getElementById("status").innerHTML =
+        "❌ Komut gönderilemedi";
+
+        console.log(error);
+
+    }
+
+}
+
+
+// =====================================================
+// 1-8 BUTONLARI
+// =====================================================
+
+document.querySelectorAll(".step")
+.forEach(function(button) {
+
+    button.addEventListener(
+        "click",
+        function() {
+
+            sendCommand(
+                button.dataset.cmd
+            );
+
+        }
+    );
+
+});
+
+
+// =====================================================
+// RESET
+// =====================================================
+
+document.getElementById("reset")
+.addEventListener(
+    "click",
+    function() {
+
+        sendCommand("R");
+
+    }
+);
+
+</script>
+
+</body>
+</html>
